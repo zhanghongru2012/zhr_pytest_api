@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <style>body {
+	font-family: Helvetica, Arial, sans-serif;
+	font-size: 12px;
+	/* do not increase min-width as some may use split screens */
+	min-width: 800px;
+	color: #999;
+}
+
+h1 {
+	font-size: 24px;
+	color: black;
+}
+
+h2 {
+	font-size: 16px;
+	color: black;
+}
+
+p {
+    color: black;
+}
+
+a {
+	color: #999;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+/******************************
+ * SUMMARY INFORMATION
+ ******************************/
+
+#environment td {
+	padding: 5px;
+	border: 1px solid #E6E6E6;
+}
+
+#environment tr:nth-child(odd) {
+	background-color: #f6f6f6;
+}
+
+/******************************
+ * TEST RESULT COLORS
+ ******************************/
+span.passed, .passed .col-result {
+	color: green;
+}
+span.skipped, span.xfailed, span.rerun, .skipped .col-result, .xfailed .col-result, .rerun .col-result {
+	color: orange;
+}
+span.error, span.failed, span.xpassed, .error .col-result, .failed .col-result, .xpassed .col-result  {
+	color: red;
+}
+
+
+/******************************
+ * RESULTS TABLE
+ *
+ * 1. Table Layout
+ * 2. Extra
+ * 3. Sorting items
+ *
+ ******************************/
+
+/*------------------
+ * 1. Table Layout
+ *------------------*/
+
+#results-table {
+	border: 1px solid #e6e6e6;
+	color: #999;
+	font-size: 12px;
+	width: 100%
+}
+
+#results-table th, #results-table td {
+	padding: 5px;
+	border: 1px solid #E6E6E6;
+	text-align: left
+}
+#results-table th {
+	font-weight: bold
+}
+
+/*------------------
+ * 2. Extra
+ *------------------*/
+
+.log:only-child {
+	height: inherit
+}
+.log {
+	background-color: #e6e6e6;
+	border: 1px solid #e6e6e6;
+	color: black;
+	display: block;
+	font-family: "Courier New", Courier, monospace;
+	height: 230px;
+	overflow-y: scroll;
+	padding: 5px;
+	white-space: pre-wrap
+}
+div.image {
+	border: 1px solid #e6e6e6;
+	float: right;
+	height: 240px;
+	margin-left: 5px;
+	overflow: hidden;
+	width: 320px
+}
+div.image img {
+	width: 320px
+}
+div.video {
+	border: 1px solid #e6e6e6;
+	float: right;
+	height: 240px;
+	margin-left: 5px;
+	overflow: hidden;
+	width: 320px
+}
+div.video video {
+	overflow: hidden;
+	width: 320px;
+    height: 240px;
+}
+.collapsed {
+	display: none;
+}
+.expander::after {
+	content: " (show details)";
+	color: #BBB;
+	font-style: italic;
+	cursor: pointer;
+}
+.collapser::after {
+	content: " (hide details)";
+	color: #BBB;
+	font-style: italic;
+	cursor: pointer;
+}
+
+/*------------------
+ * 3. Sorting items
+ *------------------*/
+.sortable {
+	cursor: pointer;
+}
+
+.sort-icon {
+	font-size: 0px;
+	float: left;
+	margin-right: 5px;
+	margin-top: 5px;
+	/*triangle*/
+	width: 0;
+	height: 0;
+	border-left: 8px solid transparent;
+	border-right: 8px solid transparent;
+}
+
+.inactive .sort-icon {
+	/*finish triangle*/
+	border-top: 8px solid #E6E6E6;
+}
+
+.asc.active .sort-icon {
+	/*finish triangle*/
+	border-bottom: 8px solid #999;
+}
+
+.desc.active .sort-icon {
+	/*finish triangle*/
+	border-top: 8px solid #999;
+}
+</style></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function find_all(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sort_column(elem) {
+    toggle_sort_states(elem);
+    var colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    var key;
+    if (elem.classList.contains('numeric')) {
+        key = key_num;
+    } else if (elem.classList.contains('result')) {
+        key = key_result;
+    } else {
+        key = key_alpha;
+    }
+    sort_table(elem, key(colIndex));
+}
+
+function show_all_extras() {
+    find_all('.col-result').forEach(show_extras);
+}
+
+function hide_all_extras() {
+    find_all('.col-result').forEach(hide_extras);
+}
+
+function show_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.remove("collapsed");
+    expandcollapse.classList.remove("expander");
+    expandcollapse.classList.add("collapser");
+}
+
+function hide_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.add("collapsed");
+    expandcollapse.classList.remove("collapser");
+    expandcollapse.classList.add("expander");
+}
+
+function show_filters() {
+    var filter_items = document.getElementsByClassName('filter');
+    for (var i = 0; i < filter_items.length; i++)
+        filter_items[i].hidden = false;
+}
+
+function add_collapse() {
+    // Add links for show/hide all
+    var resulttable = find('table#results-table');
+    var showhideall = document.createElement("p");
+    showhideall.innerHTML = '<a href="javascript:show_all_extras()">Show all details</a> / ' +
+                            '<a href="javascript:hide_all_extras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    find_all('.col-result').forEach(function(elem) {
+        var collapsed = get_query_parameter('collapsed') || 'Passed';
+        var extras = elem.parentNode.nextElementSibling;
+        var expandcollapse = document.createElement("span");
+        if (extras.classList.contains("collapsed")) {
+            expandcollapse.classList.add("expander")
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add("collapsed");
+            expandcollapse.classList.add("expander");
+        } else {
+            expandcollapse.classList.add("collapser");
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener("click", function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains("collapsed")) {
+                show_extras(event.currentTarget);
+            } else {
+                hide_extras(event.currentTarget);
+            }
+        });
+    })
+}
+
+function get_query_parameter(name) {
+    var match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () {
+    reset_sort_headers();
+
+    add_collapse();
+
+    show_filters();
+
+    sort_column(find('.initial-sort'));
+
+    find_all('.sortable').forEach(function(elem) {
+        elem.addEventListener("click",
+                              function(event) {
+                                  sort_column(elem);
+                              }, false)
+    });
+
+};
+
+function sort_table(clicked, key_func) {
+    var rows = find_all('.results-table-row');
+    var reversed = !clicked.classList.contains('asc');
+    var sorted_rows = sort(rows, key_func, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    var thead = document.getElementById("results-table-head");
+    document.getElementById('results-table').remove();
+    var parent = document.createElement("table");
+    parent.id = "results-table";
+    parent.appendChild(thead);
+    sorted_rows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName("BODY")[0].appendChild(parent);
+}
+
+function sort(items, key_func, reversed) {
+    var sort_array = items.map(function(item, i) {
+        return [key_func(item), i];
+    });
+
+    sort_array.sort(function(a, b) {
+        var key_a = a[0];
+        var key_b = b[0];
+
+        if (key_a == key_b) return 0;
+
+        if (reversed) {
+            return (key_a < key_b ? 1 : -1);
+        } else {
+            return (key_a > key_b ? 1 : -1);
+        }
+    });
+
+    return sort_array.map(function(item) {
+        var index = item[1];
+        return items[index];
+    });
+}
+
+function key_alpha(col_index) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[col_index].firstChild.data.toLowerCase();
+    };
+}
+
+function key_num(col_index) {
+    return function(elem) {
+        return parseFloat(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function key_result(col_index) {
+    return function(elem) {
+        var strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+                       'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function reset_sort_headers() {
+    find_all('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    find_all('.sortable').forEach(function(elem) {
+        var icon = document.createElement("div");
+        icon.className = "sort-icon";
+        icon.textContent = "vvv";
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove("desc", "active");
+        elem.classList.add("asc", "inactive");
+    });
+}
+
+function toggle_sort_states(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        reset_sort_headers();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function is_all_rows_hidden(value) {
+  return value.hidden == false;
+}
+
+function filter_table(elem) {
+    var outcome_att = "data-test-result";
+    var outcome = elem.getAttribute(outcome_att);
+    class_outcome = outcome + " results-table-row";
+    var outcome_rows = document.getElementsByClassName(class_outcome);
+
+    for(var i = 0; i < outcome_rows.length; i++){
+        outcome_rows[i].hidden = !elem.checked;
+    }
+
+    var rows = find_all('.results-table-row').filter(is_all_rows_hidden);
+    var all_rows_hidden = rows.length == 0 ? true : false;
+    var not_found_message = document.getElementById("not-found-message");
+    not_found_message.hidden = !all_rows_hidden;
+}
+</script>
+    <h1>report.html</h1>
+    <p>Report generated on 27-Mar-2020 at 18:45:05 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v2.1.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "0.13.0", "py": "1.8.0", "pytest": "5.2.1"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Windows-10-10.0.18362-SP0</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"allure-pytest": "2.8.12", "arraydiff": "0.3", "doctestplus": "0.4.0", "html": "2.1.1", "metadata": "1.8.0", "openfiles": "0.4.0", "remotedata": "0.3.2", "rerunfailures": "9.0", "sugar": "0.9.2"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.7.4</td></tr>
+      <tr>
+        <td>项目名称</td>
+        <td> isc-dmp-lib API-Test</td></tr></table>
+    <h2>Summary</h2>
+    <p>测试人员: ZhangHongru</p>
+    <p>14 tests ran in 0.72 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="passed">10 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="failed">4 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>, <input checked="true" class="filter" data-test-result="rerun" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="rerun">0 rerun</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th>Description</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable numeric" col="duration">Duration</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td>获取驱动描述</td>
+          <td class="col-name">testcases/test_API/test_isc_dmp_lib.py::Test_class_isc_dmp_lib::test_get_iscdmp_api_dmp_driver_desc</td>
+          <td class="col-duration">0.03</td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;testcases.test_API.test_isc_dmp_lib.Test_class_isc_dmp_lib object at 0x00000239D13E2C48&gt;<br/><br/>    def test_get_iscdmp_api_dmp_driver_desc(self):<br/>        &#x27;&#x27;&#x27;获取驱动描述&#x27;&#x27;&#x27;<br/>    <br/>        url = &#x27;/isc-dmp/api/dmp/driver/desc&#x27;<br/>        query = {<br/>             # query - string - 驱动id<br/>            &#x27;driverId&#x27;: &#x27;asdfgh&#x27;,<br/>        }<br/>    <br/>        # unknown<br/>        self.result = requestMethod.RequestMethod().get(url, query)<br/>        # object<br/>        logging.info(&#x27;接口返回结果：%s&#x27; % self.result.text)<br/>&gt;       assert self.result.status_code == 200<br/><span class="error">E       assert 500 == 200</span><br/><span class="error">E         -500</span><br/><span class="error">E         +200</span><br/><br/>testcases\test_API\test_isc_dmp_lib.py:241: AssertionError<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     root:test_isc_dmp_lib.py:240 接口返回结果：{&quot;code&quot;:&quot;internal.server.error&quot;,&quot;message&quot;:&quot;【系统异常】\njava.lang.RuntimeException: /home/isc-dmp-dev-service/data/exportPackage/light-mock-1.0.0.zip所指文件不存在&quot;,&quot;detail&quot;:&quot;java.lang.RuntimeException: /home/isc-dmp-dev-service/data/exportPackage/light-mock-1.0.0.zip所指文件不存在\n\tat com.isyscore.phoenix.common.util.ZipUtil.unZip(ZipUtil.java:33)\n\tat com.isyscore.phoenix.service.DriverClassLoader.reDownloadFile(DriverClassLoader.java:161)\n\tat com.isyscore.phoenix.service.DriverClassLoader.getDeviceDriverWrapper(DriverClassLoader.java:67)\n\tat com.isyscore.phoenix.service.DriverClassServiceImpl.getDeviceDriverWrapper(DriverClassServiceImpl.java:14)\n\tat com.isyscore.phoenix.cloud.dmp.controller.DriverController.desc$original$v7aVbzWO(DriverController.java:82)\n\tat com.isyscore.phoenix.cloud.dmp.controller.DriverController.desc$original$v7aVbzWO$accessor$WWQqyBCu(DriverController.java)\n\tat com.isyscore.phoenix.cloud.dmp.controller.DriverController$auxiliary$KvaKQzXN.call(Unknown Source)\n\tat org.apache.skywalking.apm.agent.core.plugin.interceptor.enhance.InstMethodsInter.intercept(InstMethodsInter.java:93)\n\tat com.isyscore.phoenix.cloud.dmp.controller.DriverController.desc(DriverController.java)\n\tat sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\n\tat sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)\n\tat sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)\n\tat java.lang.reflect.Method.invoke(Method.java:498)\n\tat org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:209)\n\tat org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:136)\n\tat org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:102)\n\tat org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:894)\n\tat org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:800)\n\tat org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:87)\n\tat org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:991)\n\tat org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:925)\n\tat org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:981)\n\tat org.springframework.web.servlet.FrameworkServlet.doGet(FrameworkServlet.java:873)\n\tat javax.servlet.http.HttpServlet.service(HttpServlet.java:687)\n\tat org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:858)\n\tat javax.servlet.http.HttpServlet.service(HttpServlet.java:790)\n\tat org.eclipse.jetty.servlet.ServletHolder.handle(ServletHolder.java:873)\n\tat org.eclipse.jetty.servlet.ServletHandler$CachedChain.doFilter(ServletHandler.java:1623)\n\tat org.eclipse.jetty.websocket.server.WebSocketUpgradeFilter.doFilter(WebSocketUpgradeFilter.java:214)\n\tat org.eclipse.jetty.servlet.ServletHandler$CachedChain.doFilter(ServletHandler.java:1610)\n\tat com.isyscore.boot.web.filter.BlankParamFilter.doFilterInternal(BlankParamFilter.java:22)\n\tat org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:107)\n\tat org.eclipse.jetty.servlet.ServletHandler$CachedChain.doFilter(ServletHandler.java:1610)\n\tat org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:99)\n\tat org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:107)\n\tat org.eclipse.jetty.servlet.ServletHandler$CachedChain.doFilter(ServletHandler.java:1610)\n\tat org.springframework.web.filter.HttpPutFormContentFilter.doFilterInternal(HttpPutFormContentFilter.java:109)\n\tat org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:107)\n\tat org.eclipse.jetty.servlet.ServletHandler$CachedChain.doFilter(ServletHandler.java:1610)\n\tat org.springframework.web.filter.HiddenHttpMethodFilter.doFilterInternal(HiddenHttpMethodFilter.java:93)\n\tat org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:107)\n\tat org.eclipse.jetty.servlet.ServletHandler$CachedChain.doFilter(ServletHandler.java:1610)\n\tat org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:200)\n\tat org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:107)\n\tat org.eclipse.jetty.servlet.ServletHandler$CachedChain.doFilter(ServletHandler.java:1610)\n\tat org.eclipse.jetty.servlet.ServletHandler.doHandle(ServletHandler.java:540)\n\tat org.eclipse.jetty.server.handler.ScopedHandler.handle(ScopedHandler.java:146)\n\tat org.eclipse.jetty.security.SecurityHandler.handle(SecurityHandler.java:548)\n\tat org.eclipse.jetty.server.handler.HandlerWrapper.handle(HandlerWrapper.java:132)\n\tat org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:257)\n\tat org.eclipse.jetty.server.session.SessionHandler.doHandle(SessionHandler.java:1701)\n\tat org.eclipse.jetty.server.handler.ScopedHandler.nextHandle(ScopedHandler.java:255)\n\tat org.eclipse.jetty.server.handler.ContextHandler.doHandle(ContextHandler.java:1345)\n\tat org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:203)\n\tat org.eclipse.jetty.servlet.ServletHandler.doScope(ServletHandler.java:480)\n\tat org.eclipse.jetty.server.session.SessionHandler.doScope(SessionHandler.java:1668)\n\tat org.eclipse.jetty.server.handler.ScopedHandler.nextScope(ScopedHandler.java:201)\n\tat org.eclipse.jetty.server.handler.ContextHandler.doScope(ContextHandler.java:1247)\n\tat org.eclipse.jetty.server.handler.ScopedHandler.handle(ScopedHandler.java:144)\n\tat org.eclipse.jetty.server.handler.HandlerWrapper.handle(HandlerWrapper.java:132)\n\tat org.eclipse.jetty.server.Server.handle(Server.java:502)\n\tat org.eclipse.jetty.server.HttpChannel.handle$original$EhVXg92T(HttpChannel.java:370)\n\tat org.eclipse.jetty.server.HttpChannel.handle$original$EhVXg92T$accessor$hLXWuitP(HttpChannel.java)\n\tat org.eclipse.jetty.server.HttpChannel$auxiliary$HKZ5WxbB.call(Unknown Source)\n\tat org.apache.skywalking.apm.agent.core.plugin.interceptor.enhance.InstMethodsInter.intercept(InstMethodsInter.java:93)\n\tat org.eclipse.jetty.server.HttpChannel.handle(HttpChannel.java)\n\tat org.eclipse.jetty.server.HttpConnection.onFillable(HttpConnection.java:267)\n\tat org.eclipse.jetty.io.AbstractConnection$ReadCallback.succeeded(AbstractConnection.java:305)\n\tat org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:103)\n\tat org.eclipse.jetty.io.ChannelEndPoint$2.run(ChannelEndPoint.java:117)\n\tat org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.runTask(EatWhatYouKill.java:333)\n\tat org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.doProduce(EatWhatYouKill.java:310)\n\tat org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.tryProduce(EatWhatYouKill.java:168)\n\tat org.eclipse.jetty.util.thread.strategy.EatWhatYouKill.run(EatWhatYouKill.java:126)\n\tat org.eclipse.jetty.util.thread.ReservedThreadExecutor$ReservedThread.run(ReservedThreadExecutor.java:366)\n\tat org.eclipse.jetty.util.thread.QueuedThreadPool.runJob(QueuedThreadPool.java:765)\n\tat org.eclipse.jetty.util.thread.QueuedThreadPool$2.run(QueuedThreadPool.java:683)\n\tat java.lang.Thread.run(Thread.java:748)\n&quot;}<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td>获取驱动属性列表</td>
+          <td class="col-name">testcases/test_API/test_isc_dmp_lib.py::Test_class_isc_dmp_lib::test_get_isc_dmp_api_dmp_driver_get_properties</td>
+          <td class="col-duration">0.02</td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;testcases.test_API.test_isc_dmp_lib.Test_class_isc_dmp_lib object at 0x00000239D1410208&gt;<br/><br/>    def test_get_isc_dmp_api_dmp_driver_get_properties(self):<br/>        &#x27;&#x27;&#x27;获取驱动属性列表&#x27;&#x27;&#x27;<br/>    <br/>        url = &#x27;/isc-dmp/api/dmp/driver/get-properties&#x27;<br/>        query = {<br/>            # query - string - 驱动id<br/>            &#x27;driverId&#x27;: &#x27;asdfgh&#x27;,<br/>        }<br/>        self.result = requestMethod.RequestMethod().get(url, query)<br/>&gt;       logging.info(&#x27;接口返回结果&#x27; % self.result.text)<br/><span class="error">E       TypeError: not all arguments converted during string formatting</span><br/><br/>testcases\test_API\test_isc_dmp_lib.py:252: TypeError<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td>获取驱动事件列表</td>
+          <td class="col-name">testcases/test_API/test_isc_dmp_lib.py::Test_class_isc_dmp_lib::test_isc_dmp_api_dmp_driver_get_events</td>
+          <td class="col-duration">0.02</td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;testcases.test_API.test_isc_dmp_lib.Test_class_isc_dmp_lib object at 0x00000239D148D9C8&gt;<br/><br/>    def test_isc_dmp_api_dmp_driver_get_events(self):<br/>        &#x27;&#x27;&#x27;获取驱动事件列表&#x27;&#x27;&#x27;<br/>    <br/>        url = &#x27;/isc-dmp/api/dmp/driver/get-events&#x27;<br/>        query = {<br/>            # query - string - 驱动id<br/>            &#x27;driverId&#x27;: &#x27;asdfgh&#x27;,<br/>        }<br/>        self.result = requestMethod.RequestMethod().get(url, query)<br/>&gt;       logging.info(&#x27;接口返回结果&#x27; % self.result.text)<br/><span class="error">E       TypeError: not all arguments converted during string formatting</span><br/><br/>testcases\test_API\test_isc_dmp_lib.py:264: TypeError<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td>获取驱动服务列表</td>
+          <td class="col-name">testcases/test_API/test_isc_dmp_lib.py::Test_class_isc_dmp_lib::test_isc_dmp_api_dmp_driver_get_services</td>
+          <td class="col-duration">0.02</td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;testcases.test_API.test_isc_dmp_lib.Test_class_isc_dmp_lib object at 0x00000239D1480188&gt;<br/><br/>    def test_isc_dmp_api_dmp_driver_get_services(self):<br/>        &#x27;&#x27;&#x27;获取驱动服务列表&#x27;&#x27;&#x27;<br/>    <br/>        url = &#x27;/isc-dmp/api/dmp/driver/get-services&#x27;<br/>        query = {<br/>            # query - string - 驱动id<br/>            &#x27;driverId&#x27;: &#x27;asdfgh&#x27;,<br/>        }<br/>        self.result = requestMethod.RequestMethod().get(url, query)<br/>&gt;       logging.info(&#x27;接口返回结果&#x27; % self.result.text)<br/><span class="error">E       TypeError: not all arguments converted during string formatting</span><br/><br/>testcases\test_API\test_isc_dmp_lib.py:276: TypeError<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td>添加子系统</td>
+          <td class="col-name">testcases/test_API/test_isc_dmp_lib.py::Test_class_isc_dmp_lib::test_post_isc_dmp_api_dmp_sub_system</td>
+          <td class="col-duration">0.04</td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -------------------------------Captured log call-------------------------------- <br/>INFO     root:test_isc_dmp_lib.py:49 接口返回结果：{&quot;code&quot;:&quot;name.duplicate&quot;,&quot;message&quot;:&quot;名称重复&quot;,&quot;detail&quot;:null}<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td>删除子系统</td>
+          <td class="col-name">testcases/test_API/test_isc_dmp_lib.py::Test_class_isc_dmp_lib::test_delete_isc_dmp_api_dmp_sub_system</td>
+          <td class="col-duration">0.03</td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -------------------------------Captured log call-------------------------------- <br/>INFO     root:test_isc_dmp_lib.py:63 接口返回结果：true<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td>分页获取子系统</td>
+          <td class="col-name">testcases/test_API/test_isc_dmp_lib.py::Test_class_isc_dmp_lib::test_get_isc_dmp_api_dmp_sub_system</td>
+          <td class="col-duration">0.03</td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -------------------------------Captured log call-------------------------------- <br/>INFO     root:test_isc_dmp_lib.py:84 接口返回结果：{&quot;records&quot;:[{&quot;id&quot;:1,&quot;name&quot;:&quot;zhr&quot;,&quot;description&quot;:&quot;asdasdqwe&quot;,&quot;updatedAt&quot;:&quot;2020-03-27 17:17:00&quot;,&quot;createAt&quot;:null,&quot;userId&quot;:1,&quot;parentId&quot;:null,&quot;parentName&quot;:null},{&quot;id&quot;:3,&quot;name&quot;:&quot;123321&quot;,&quot;description&quot;:null,&quot;updatedAt&quot;:&quot;2020-03-27 16:32:30&quot;,&quot;createAt&quot;:null,&quot;userId&quot;:1,&quot;parentId&quot;:null,&quot;parentName&quot;:null},{&quot;id&quot;:4,&quot;name&quot;:&quot;zhr_test11&quot;,&quot;description&quot;:null,&quot;updatedAt&quot;:&quot;2020-03-27 16:41:30&quot;,&quot;createAt&quot;:null,&quot;userId&quot;:1,&quot;parentId&quot;:null,&quot;parentName&quot;:null},{&quot;id&quot;:5,&quot;name&quot;:&quot;zhr_test&quot;,&quot;description&quot;:null,&quot;updatedAt&quot;:&quot;2020-03-27 16:51:06&quot;,&quot;createAt&quot;:null,&quot;userId&quot;:1,&quot;parentId&quot;:null,&quot;parentName&quot;:null}],&quot;total&quot;:4,&quot;size&quot;:10,&quot;current&quot;:1,&quot;orders&quot;:[],&quot;searchCount&quot;:true,&quot;pages&quot;:1}<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td>编辑子系统</td>
+          <td class="col-name">testcases/test_API/test_isc_dmp_lib.py::Test_class_isc_dmp_lib::test_put_isc_dmp_api_dmp_sub_system</td>
+          <td class="col-duration">0.03</td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -------------------------------Captured log call-------------------------------- <br/>INFO     root:test_isc_dmp_lib.py:106 接口返回结果：true<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td>分页获取产品</td>
+          <td class="col-name">testcases/test_API/test_isc_dmp_lib.py::Test_class_isc_dmp_lib::test_get_iscdmp_api_dmp_product</td>
+          <td class="col-duration">0.01</td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -------------------------------Captured log call-------------------------------- <br/>INFO     root:test_isc_dmp_lib.py:126 接口返回结果：{&quot;records&quot;:[{&quot;id&quot;:2,&quot;name&quot;:&quot;zhr2&quot;,&quot;subSystemId&quot;:1,&quot;brand&quot;:&quot;大华&quot;,&quot;model&quot;:&quot;型号1&quot;,&quot;description&quot;:&quot;null&quot;,&quot;updatedAt&quot;:&quot;2020-03-27 18:32:09&quot;,&quot;createdAt&quot;:&quot;2020-03-27 16:41:30&quot;,&quot;driverId&quot;:&quot;asdfgh&quot;,&quot;userId&quot;:1,&quot;subSystemName&quot;:&quot;zhr&quot;,&quot;driverName&quot;:&quot;模拟设备驱动&quot;}],&quot;total&quot;:1,&quot;size&quot;:10,&quot;current&quot;:1,&quot;orders&quot;:[],&quot;searchCount&quot;:true,&quot;pages&quot;:1}<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td>删除产品</td>
+          <td class="col-name">testcases/test_API/test_isc_dmp_lib.py::Test_class_isc_dmp_lib::test_delete_iscdmp_api_dmp_product</td>
+          <td class="col-duration">0.02</td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -------------------------------Captured log call-------------------------------- <br/>INFO     root:test_isc_dmp_lib.py:139 接口返回结果：false<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td>添加产品</td>
+          <td class="col-name">testcases/test_API/test_isc_dmp_lib.py::Test_class_isc_dmp_lib::test_post_iscdmp_api_dmp_product</td>
+          <td class="col-duration">0.25</td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -------------------------------Captured log call-------------------------------- <br/>INFO     root:test_isc_dmp_lib.py:166 接口返回结果：true<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td>编辑产品</td>
+          <td class="col-name">testcases/test_API/test_isc_dmp_lib.py::Test_class_isc_dmp_lib::test_put_iscdmp_api_dmp_product</td>
+          <td class="col-duration">0.03</td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -------------------------------Captured log call-------------------------------- <br/>INFO     root:test_isc_dmp_lib.py:195 接口返回结果：true<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td>获取单个产品</td>
+          <td class="col-name">testcases/test_API/test_isc_dmp_lib.py::Test_class_isc_dmp_lib::test_get_iscdmp_api_dmp_product_id</td>
+          <td class="col-duration">0.02</td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -------------------------------Captured log call-------------------------------- <br/>INFO     root:test_isc_dmp_lib.py:210 接口返回结果：<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td>获取单个子系统</td>
+          <td class="col-name">testcases/test_API/test_isc_dmp_lib.py::Test_class_isc_dmp_lib::test_get_iscdmp_api_dmp_subSystem_id</td>
+          <td class="col-duration">0.01</td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -------------------------------Captured log call-------------------------------- <br/>INFO     root:test_isc_dmp_lib.py:225 接口返回结果：<br/></div></td></tr></tbody></table></body></html>
